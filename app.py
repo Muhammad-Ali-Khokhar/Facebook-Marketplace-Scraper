@@ -1,8 +1,8 @@
 import streamlit as st
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager  # <-- Add this line
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
@@ -12,6 +12,8 @@ from datetime import datetime
 from selenium.webdriver.chrome.options import Options
 import zipfile
 import io
+import os
+
 
 # Function to run the web scraping for exact matches
 def scrape_facebook_marketplace_exact(city, product, min_price, max_price, city_code_fb, sleep_time):
@@ -24,10 +26,21 @@ def scrape_facebook_marketplace_partial(city, product, min_price, max_price, cit
 # Main scraping function with an exact match flag
 def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact, sleep_time=5):
     chrome_options = Options()
-    # chrome_options.add_argument("--headless")  # Uncomment if you want headless mode
+    chrome_options.add_argument("--headless")  # Enables headless mode
+    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (optional, good for headless)
+    chrome_options.add_argument("--no-sandbox")  # Recommended for Linux systems
+    chrome_options.add_argument("--disable-dev-shm-usage")  # Avoid issues with /dev/shm on Linux
+    chrome_options.add_argument("--disable-quic")
 
-    # Use WebDriverManager to handle ChromeDriver installation
     browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    # # Set ChromeDriver executable path for Docker compatibility
+    # driver_path = "/usr/bin/chromedriver" if os.path.exists("/usr/bin/chromedriver") else None
+    # if driver_path:
+    #     browser = webdriver.Chrome(service=Service(driver_path), options=chrome_options)
+    # else:
+    #     # Use WebDriverManager to handle ChromeDriver installation
+        
+
 
     # Setup URL
     exact_param = 'true' if exact else 'false'
