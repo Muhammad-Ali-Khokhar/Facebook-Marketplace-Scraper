@@ -2,7 +2,7 @@ import streamlit as st
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager  # <-- Add this line
+from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
@@ -14,17 +14,16 @@ import zipfile
 import io
 import os
 
-
 # Function to run the web scraping for exact matches
-def scrape_facebook_marketplace_exact(city, product, min_price, max_price, city_code_fb, sleep_time):
-    return scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact=True, sleep_time=sleep_time)
+def scrape_facebook_marketplace_exact(city, product, min_price, max_price, city_code_fb):
+    return scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact=True)
 
 # Function to run the web scraping for partial matches
-def scrape_facebook_marketplace_partial(city, product, min_price, max_price, city_code_fb, sleep_time):
-    return scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact=False, sleep_time=sleep_time)
+def scrape_facebook_marketplace_partial(city, product, min_price, max_price, city_code_fb):
+    return scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact=False)
 
 # Main scraping function with an exact match flag
-def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact, sleep_time=5):
+def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact, sleep_time=3):
     chrome_options = Options()
     chrome_options.add_argument("--headless")  # Enables headless mode
     chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (optional, good for headless)
@@ -33,14 +32,6 @@ def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_f
     chrome_options.add_argument("--disable-quic")
 
     browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    # # Set ChromeDriver executable path for Docker compatibility
-    # driver_path = "/usr/bin/chromedriver" if os.path.exists("/usr/bin/chromedriver") else None
-    # if driver_path:
-    #     browser = webdriver.Chrome(service=Service(driver_path), options=chrome_options)
-    # else:
-    #     # Use WebDriverManager to handle ChromeDriver installation
-        
-
 
     # Setup URL
     exact_param = 'true' if exact else 'false'
@@ -86,35 +77,43 @@ def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_f
     if exact:
         final_links = []
         for link in links:
-            if fuzz.partial_ratio(product.lower(), link.text.lower()) >= 90:
-                if fuzz.partial_ratio(city.lower().rstrip(), link.text.lower()) >= 70:
+            if fuzz.partial_ratio(product.lower(), link.text.lower()) >= 70:
+                if fuzz.partial_ratio(city.lower().rstrip(), link.text.lower()) >= 50:
                     final_links.append(link)
     else:
-        fuzz_threshold = 70
+        fuzz_threshold = 50
         final_links = [
             link for link in links
             if fuzz.partial_ratio(product.lower(), link.text.lower()) > fuzz_threshold and city.lower() in link.text.lower()
         ]
 
-    # Extract product data
+    # Extract product data using enhanced logic
     extracted_data = []
     for prod_link in final_links:
         url = prod_link.get('href')
         text = '\n'.join(prod_link.stripped_strings)
         lines = text.split('\n')
 
-        numeric_pattern = re.compile(r'\d[\d, •]*')
+        numeric_pattern = re.compile(r'\d[\d, •]*')  # Pattern to find prices
         price = None
 
         for line in lines:
             match = numeric_pattern.search(line)
             if match:
                 price_str = match.group()
-                price = float(price_str.replace(',', ''))
+                price = float(price_str.replace(',', '').replace('•', '').strip())
                 break
 
-        title = lines[-2] if len(lines) > 1 else ""
-        location = lines[-1] if lines else ""
+        # Title and location extraction
+        title = ""
+        location = ""
+        for i, line in enumerate(lines):
+            if i == 1:  # Assume the first line is the title
+                title = line.strip()
+            elif "km" in line.lower() or "miles" in line.lower():  # Distance pattern for location
+                location = line.strip()
+            elif len(lines) > 1 and i == len(lines) - 1:  # Fallback for last line as location
+                location = line.strip()
 
         extracted_data.append({
             'title': title,
@@ -157,7 +156,6 @@ with st.form(key='input_form'):
         max_price = st.number_input("Maximum Price", min_value=0, value=1000, step=1)
     
     city_code_fb = st.text_input("City Code for Facebook Marketplace", placeholder="Enter city code...")
-    sleep_time = st.number_input("Sleep Time (seconds)", min_value=0.0, value=2.0, step=0.1)
 
     col3, col4 = st.columns([3, 1])
     with col3:
@@ -174,7 +172,6 @@ if add_button:
             "min_price": min_price,
             "max_price": max_price,
             "city_code_fb": city_code_fb,
-            "sleep_time": sleep_time,
         })
         st.success("Marketplace added successfully!")
     else:
@@ -184,14 +181,13 @@ if add_button:
 if st.session_state["marketplaces"]:
     st.write("### Current Marketplaces:")
     for i, entry in enumerate(st.session_state["marketplaces"]):
-        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.write(entry["city"])
         col2.write(entry["product"])
         col3.write(entry["min_price"])
         col4.write(entry["max_price"])
         col5.write(entry["city_code_fb"])
-        col6.write(entry["sleep_time"])
-        if col7.button("❌ Remove", key=f"remove_{i}"):
+        if col6.button("❌ Remove", key=f"remove_{i}"):
             st.session_state["marketplaces"].pop(i)
 
 # Handle scraping data
@@ -210,8 +206,7 @@ if submit_button:
                     marketplace["product"],
                     marketplace["min_price"],
                     marketplace["max_price"],
-                    marketplace["city_code_fb"],
-                    marketplace["sleep_time"]
+                    marketplace["city_code_fb"]
                 )
 
             if not items_df.empty:
