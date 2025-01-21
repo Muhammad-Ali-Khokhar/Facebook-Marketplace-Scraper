@@ -5,4 +5,4 @@ beautifulsoup4
 fuzzywuzzy
 pandas
 chromedriver-autoinstaller
-pyppeteer  # To support headless Chrome if needed for Streamlit Cloud
+pyppeteer  # For headless Chrome support
