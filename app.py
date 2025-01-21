@@ -17,16 +17,13 @@ import os
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
-def get_chrome_driver():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Ensures headless mode
-    chrome_options.add_argument("--no-sandbox")  # Disable sandbox (important for cloud environments)
-    chrome_options.add_argument("--disable-dev-shm-usage")  # Avoid resource issues
-    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (helps with headless)
-    chrome_options.add_argument("--disable-quic")  # For better stability
+import asyncio
+from pyppeteer import launch
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    return driver
+async def get_chrome_driver():
+    browser = await launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
+    page = await browser.newPage()
+    return page
 
 # Function to run the web scraping for exact matches
 def scrape_facebook_marketplace_exact(city, product, min_price, max_price, city_code_fb):
