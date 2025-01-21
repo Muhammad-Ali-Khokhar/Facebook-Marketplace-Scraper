@@ -14,6 +14,20 @@ import zipfile
 import io
 import os
 
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+
+def get_chrome_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Ensures headless mode
+    chrome_options.add_argument("--no-sandbox")  # Disable sandbox (important for cloud environments)
+    chrome_options.add_argument("--disable-dev-shm-usage")  # Avoid resource issues
+    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (helps with headless)
+    chrome_options.add_argument("--disable-quic")  # For better stability
+
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    return driver
+
 # Function to run the web scraping for exact matches
 def scrape_facebook_marketplace_exact(city, product, min_price, max_price, city_code_fb):
     return scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact=True)
@@ -24,14 +38,9 @@ def scrape_facebook_marketplace_partial(city, product, min_price, max_price, cit
 
 # Main scraping function with an exact match flag
 def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact, sleep_time=3):
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Enables headless mode
-    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (optional, good for headless)
-    chrome_options.add_argument("--no-sandbox")  # Recommended for Linux systems
-    chrome_options.add_argument("--disable-dev-shm-usage")  # Avoid issues with /dev/shm on Linux
-    chrome_options.add_argument("--disable-quic")
+    
 
-    browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    browser = browser = get_chrome_driver()
 
     # Setup URL
     exact_param = 'true' if exact else 'false'
