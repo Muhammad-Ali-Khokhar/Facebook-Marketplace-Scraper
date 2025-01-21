@@ -1,7 +1,7 @@
-streamlit==1.15.0
-selenium==4.8.0
-webdriver-manager==3.8.4
-beautifulsoup4==4.11.1
-fuzzywuzzy==0.18.0
-pandas==1.5.3
-chromedriver-autoinstaller==0.3.1
+streamlit
+selenium
+webdriver-manager
+beautifulsoup4
+fuzzywuzzy
+pandas
+chromedriver-autoinstaller
