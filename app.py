@@ -34,46 +34,46 @@ def scrape_facebook_marketplace_partial(city, product, min_price, max_price, cit
     return scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact=False)
 
 # Main scraping function with an exact match flag
-def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact, sleep_time=3):
-    
-
-    browser = browser = get_chrome_driver()
+async def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact, sleep_time=3):
+    page = await get_chrome_driver()
 
     # Setup URL
     exact_param = 'true' if exact else 'false'
     url = f"https://www.facebook.com/marketplace/{city_code_fb}/search?query={product}&minPrice={min_price}&maxPrice={max_price}&daysSinceListed=1&exact={exact_param}"
-    browser.get(url)
-
-    time.sleep(4)
+    
+    await page.goto(url)
+    await page.waitForSelector('div')
 
     # Close cookies and pop-ups
     try:
-        close_btn = browser.find_element(By.XPATH, '//div[@aria-label="Decline optional cookies" and @role="button"]')
-        close_btn.click()
+        close_btn = await page.querySelector('//div[@aria-label="Decline optional cookies" and @role="button"]')
+        if close_btn:
+            await close_btn.click()
     except:
         pass
 
     try:
-        close_btn = browser.find_element(By.XPATH, '//div[@aria-label="Close" and @role="button"]')
-        close_btn.click()
+        close_btn = await page.querySelector('//div[@aria-label="Close" and @role="button"]')
+        if close_btn:
+            await close_btn.click()
     except:
         pass
 
     # Scroll down to load more items
     count = 0
-    last_height = browser.execute_script("return document.body.scrollHeight")
+    last_height = await page.evaluate('document.body.scrollHeight')
     while True:
-        browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(sleep_time)
-        new_height = browser.execute_script("return document.body.scrollHeight")
-        if (new_height == last_height) or count == 8:
+        await page.evaluate('window.scrollTo(0, document.body.scrollHeight);')
+        await asyncio.sleep(sleep_time)
+        new_height = await page.evaluate('document.body.scrollHeight')
+        if new_height == last_height or count == 8:
             break
         last_height = new_height
-        count = count + 1
+        count += 1
 
     # Retrieve the HTML
-    html = browser.page_source
-    browser.close()
+    html = await page.content()
+    await page.close()
 
     # Use BeautifulSoup to parse the HTML
     soup = BeautifulSoup(html, 'html.parser')
@@ -207,13 +207,13 @@ if submit_button:
         combined_df = pd.DataFrame()
         for marketplace in st.session_state["marketplaces"]:
             with st.spinner(f"Scraping data for {marketplace['city']}..."):
-                items_df, total_links = scrape_facebook_marketplace_exact(
+                items_df, total_links = asyncio.run(scrape_facebook_marketplace_exact(
                     marketplace["city"],
                     marketplace["product"],
                     marketplace["min_price"],
                     marketplace["max_price"],
                     marketplace["city_code_fb"]
-                )
+                ))
 
             if not items_df.empty:
                 if "scraped_data" not in st.session_state:
