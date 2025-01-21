@@ -1,29 +1,13 @@
 import streamlit as st
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
+from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
 import time
 from fuzzywuzzy import fuzz
-from datetime import datetime
-from selenium.webdriver.chrome.options import Options
 import zipfile
 import io
 import os
-
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-
-import asyncio
-from pyppeteer import launch
-
-async def get_chrome_driver():
-    browser = await launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
-    page = await browser.newPage()
-    return page
 
 # Function to run the web scraping for exact matches
 def scrape_facebook_marketplace_exact(city, product, min_price, max_price, city_code_fb):
@@ -34,46 +18,40 @@ def scrape_facebook_marketplace_partial(city, product, min_price, max_price, cit
     return scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact=False)
 
 # Main scraping function with an exact match flag
-async def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact, sleep_time=3):
-    page = await get_chrome_driver()
+def scrape_facebook_marketplace(city, product, min_price, max_price, city_code_fb, exact, sleep_time=3):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
 
-    # Setup URL
-    exact_param = 'true' if exact else 'false'
-    url = f"https://www.facebook.com/marketplace/{city_code_fb}/search?query={product}&minPrice={min_price}&maxPrice={max_price}&daysSinceListed=1&exact={exact_param}"
-    
-    await page.goto(url)
-    await page.waitForSelector('div')
+        # Setup URL
+        exact_param = 'true' if exact else 'false'
+        url = f"https://www.facebook.com/marketplace/{city_code_fb}/search?query={product}&minPrice={min_price}&maxPrice={max_price}&daysSinceListed=1&exact={exact_param}"
+        page.goto(url)
 
-    # Close cookies and pop-ups
-    try:
-        close_btn = await page.querySelector('//div[@aria-label="Decline optional cookies" and @role="button"]')
-        if close_btn:
-            await close_btn.click()
-    except:
-        pass
+        time.sleep(4)
 
-    try:
-        close_btn = await page.querySelector('//div[@aria-label="Close" and @role="button"]')
-        if close_btn:
-            await close_btn.click()
-    except:
-        pass
+        # Close cookies and pop-ups
+        try:
+            page.click('//div[@aria-label="Decline optional cookies" and @role="button"]')
+        except:
+            pass
 
-    # Scroll down to load more items
-    count = 0
-    last_height = await page.evaluate('document.body.scrollHeight')
-    while True:
-        await page.evaluate('window.scrollTo(0, document.body.scrollHeight);')
-        await asyncio.sleep(sleep_time)
-        new_height = await page.evaluate('document.body.scrollHeight')
-        if new_height == last_height or count == 8:
-            break
-        last_height = new_height
-        count += 1
+        try:
+            page.click('//div[@aria-label="Close" and @role="button"]')
+        except:
+            pass
 
-    # Retrieve the HTML
-    html = await page.content()
-    await page.close()
+        # Scroll down to load more items
+        count = 0
+        while count < 8:
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(sleep_time)
+            count += 1
+
+        # Retrieve the HTML
+        html = page.content()
+        browser.close()
 
     # Use BeautifulSoup to parse the HTML
     soup = BeautifulSoup(html, 'html.parser')
@@ -207,13 +185,13 @@ if submit_button:
         combined_df = pd.DataFrame()
         for marketplace in st.session_state["marketplaces"]:
             with st.spinner(f"Scraping data for {marketplace['city']}..."):
-                items_df, total_links = asyncio.run(scrape_facebook_marketplace_exact(
+                items_df, total_links = scrape_facebook_marketplace_exact(
                     marketplace["city"],
                     marketplace["product"],
                     marketplace["min_price"],
                     marketplace["max_price"],
                     marketplace["city_code_fb"]
-                ))
+                )
 
             if not items_df.empty:
                 if "scraped_data" not in st.session_state:
